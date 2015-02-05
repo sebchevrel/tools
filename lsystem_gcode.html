@@ -1,0 +1,223 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <title>LSystem GCode Maker</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    
+    <style type="text/css">
+    
+    #sidebar            { position:absolute; top:0px; width:300px; right:0px; padding:20px; }
+    label               { margin-right: 10px; }
+    input[type="text"]  { margin-right:10px; }
+    #texture            { background:#000; }
+    input               { margin-bottom:5px; }
+
+    </style>
+
+    <script src="js/growingpacker.js"></script>
+    <script src="js/opentype.min.js"></script>
+
+    <script type="text/javascript">
+    'use strict';
+    (function()
+    {
+        var canvas,
+            c2d;
+
+        var rules={            
+            seb: { iterations:6, angle: 1.0471975511965976,rules: {A: "-F-B-F+F+",B: "F++F",F: "F-AF+F-"},start: "F"},            
+            seb2: { iterations:4, start:'X',rules:{X :'X+YF++YF-FX--FXFX-YF+', Y : '-FX+YFYF++YF+FX--FX-Y', F:'++F--'},angle:Math.PI/3},
+            seb3: { iterations:4, start:'X',rules:{X :'X+YF++YF-FX--FXFX-YF+', Y : '-FX+YFYF++YF+FX--FX-Y', F:'[FF--FF++]'},angle:Math.PI/3},
+            seb4: { iterations:4, angle: 1.0471975511965976,rules: {F: "[FF--FF++]FFF",X: "X+YF+YF-FX-FXFX-YF+",Y: "-FX+YFYF+YF+FX--FX-Y"},start: "X"},
+            
+            vonkoch: { iterations:5, start:'F',rules:{'F':'F+F--F+F'}, angle:Math.PI/3 },
+            peanogosper: { iterations:5, start:'X',rules:{X :'X+YF++YF-FX--FXFX-YF+', Y : '-FX+YFYF++YF+FX--FX-Y'},angle:Math.PI/3},
+            dragon: { iterations:12, start:'X', rules:{'X':'X+YF+', 'Y':'-FX-Y'}, angle:Math.PI/2},
+            thirtytwo: { iterations:2, start:'F',rules:{'F':'-F+F-F-F+F+FF-F+F+FF+F-F-FF+FF-FF+F+F-FF-F-F+FF-F-F+F+F-F+'}, angle:Math.PI/2},
+            hilbert: { iterations:6,start:'L',rules:{'L':'+RF-LFL-FR+', 'R':'-LF+RFR+FL-'}, angle:Math.PI/2},
+            hilbert2: { iterations:4, start:'X', rules: {'X':'XFYFX+F+YFXFY-F-XFYFX', 'Y':'YFXFY-F-XFYFX+F+YFXFY'}, angle:Math.PI/2},
+            square: { iterations:6, start:'X', rules:{'X':'XF-F+F-XF+F+XF-F+F-X'}, angle:Math.PI/2 },
+            penrose: { iterations:5, start:'[7]++[7]++[7]++[7]++[7]', rules:{'6':'81++91----71[-81----61]++','7':'+81--91[---61--71]+','8':'-61++71[+++81++91]-','9':'--81++++61[+91++++71]--71','1':''}, angle:Math.PI/5 }
+        }
+
+        var rule=rules.seb;
+        var iterations=5;   
+        
+        window.addEventListener('load',onAppLoaded,false);
+
+        function initApp()
+        {
+            canvas=document.getElementById('texture');
+            canvas.width=window.innerWidth-340;
+            canvas.height=window.innerHeight;
+            c2d=canvas.getContext('2d');
+            c2d.lineWidth='1';
+            
+            document.getElementById('iterations').addEventListener('change',updateRuleFromUI)
+            document.getElementById('axiom').addEventListener('change',updateRuleFromUI)
+            for(var i=1; i<=5; i++) document.getElementById('rule'+i).addEventListener('change',updateRuleFromUI)
+            document.getElementById('angle').addEventListener('change',updateRuleFromUI)
+            
+            var presets=document.getElementById('presets')
+            presets.addEventListener('change',onPresetSelected);
+            for(var a in rules) {
+                if(rules.hasOwnProperty(a)) {
+                    var option=document.createElement('option');
+                    option.setAttribute('value',a)
+                    option.appendChild(document.createTextNode(a));
+                    presets.appendChild(option)
+                }
+            }
+            updateUIFromRule()
+            run();
+        } 
+
+        function onPresetSelected()
+        {
+            rule=rules[document.getElementById('presets').value];
+            if (rule.iterations) iterations=rule.iterations
+            updateUIFromRule();
+            run();
+        }
+
+        function updateUIFromRule()
+        {
+            document.getElementById('iterations').value=iterations
+            var i=1;
+            for(var a in rule.rules) {
+                if(rule.rules.hasOwnProperty(a)) {
+                    document.getElementById('rule'+i).value=a+'='+rule.rules[a];
+                    i++;
+                }
+            }
+            while(i<6) document.getElementById('rule'+i++).value='';
+            document.getElementById('axiom').value=rule.start;
+            document.getElementById('angle').value=rule.angle*180/Math.PI;
+        }
+
+        function updateRuleFromUI()
+        {
+            iterations=Number(document.getElementById('iterations').value);
+            var therules={};
+            for(var i=1; i<=5; i++) {
+                var ruledef=document.getElementById('rule'+i).value
+                ruledef=ruledef.split('=');
+                if (ruledef.length==2) therules[ruledef[0]]=ruledef[1];
+            }
+            rule={ start: document.getElementById('axiom').value, rules: therules, angle: Number(document.getElementById('angle').value*Math.PI/180) };
+            console.log(JSON.stringify(rule));
+            run();
+        }
+
+        function run() {
+            var string=rule.start;
+            for(var i=0 ; i<iterations; i++) string=LSystem(string,rule);
+            renderCanvas(string,rule.angle);   
+        }
+
+        function LSystem(input,rule)
+        {
+            var found=false;
+            var output='';
+            for(var i=0; i<input.length; i++)
+            {
+                found=false;
+                var c=input.charAt(i);
+                for(var a in rule.rules) {
+                    if (rule.rules.hasOwnProperty(a)) {
+                        if(a===c && ! found) {
+                            output+=rule.rules[a];
+                            found=true;
+                        }
+                    }
+                }
+                if (! found) output+=c;
+            }
+            return output;
+        }
+
+        function renderCanvas(commands,delta_angle)
+        {
+            var x=0, y=0, angle=0, bounds={ top:0,bottom:-0,left:0,right:-0 },stack=[],points=[];
+            
+            points.push({x:x,y:y});
+            
+            for(var i=0; i<commands.length; i++) 
+            {
+                var c=commands.charAt(i);
+                if(c==='-') angle-=delta_angle;
+                else if(c==='+') angle+=delta_angle;
+                else if (c==='[') stack.push({x:x,y:y,angle:angle});
+                else if (c===']') { var a=stack.pop(); x=a.x; y=a.y; angle=a.angle; points.push({x:x,y:y}); }
+                else if (c==='F') {
+                    x+=Math.cos(angle);
+                    y-=Math.sin(angle);    
+                    points.push({x:x,y:y});
+                }
+                else if (! isNaN(c))  {
+                    x+=Math.cos(angle);
+                    y-=Math.sin(angle);
+                    points.push({x:x,y:y});    
+                }
+                // calculate boundaries
+                if (y<bounds.top) bounds.top=y;
+                if (y>bounds.bottom) bounds.bottom=y;
+                if (x>bounds.right) bounds.right=x;
+                if (x<bounds.left) bounds.left=x;
+            }
+
+            
+            var scaleX = (canvas.width-10) / (bounds.right- bounds.left);
+            var scaleY = (canvas.height-10) / (bounds.bottom - bounds.top);
+
+            if(scaleX<scaleY) scaleY=scaleX; else scaleX=scaleY;
+
+            var offsetX =-Math.round(bounds.left*scaleX)+4.5;
+            var offsetY =-Math.round(bounds.top*scaleY)+4.5;
+            
+            c2d.clearRect(0,0,canvas.width,canvas.height);
+            c2d.lineWidth=2;
+            for(var i=1; i<points.length; i++) {
+                var col=Math.floor(i*256/points.length)
+                c2d.beginPath()
+                c2d.moveTo(points[i-1].x*scaleX+offsetX,points[i-1].y*scaleY+offsetY);
+                c2d.lineTo(points[i].x*scaleX+offsetX,points[i].y*scaleY+offsetY);
+                c2d.strokeStyle='rgb('+(255-col)+',0,'+col+')';                
+                c2d.stroke();
+            }
+        }
+        
+        function onAppLoaded(event)
+        {
+            initApp();
+        }
+        
+    })();
+    </script>
+
+</head>
+
+<body>
+    
+    <canvas id="texture" width="1024" height="1024"></canvas>
+    
+    <aside id="sidebar">
+        <h1>L-System</h1>
+        <p><label>Presets</label><select id="presets"></select></p>
+        <p><label>Iterations</label><input type="text" id="iterations" value="5" size="5" /> <label>Angle</label><input type="text" id="angle" value="90" size="5" /></p>
+        <p><label>Axiom</label><input type="text" id="axiom" value="" size="40" /></p>
+        <p><label>Rule 1</label><input type="text" id="rule1" value="" size="40" /></p>
+        <p><label>Rule 2</label><input type="text" id="rule2" value="" size="40" /></p>
+        <p><label>Rule 3</label><input type="text" id="rule3" value="" size="40" /></p>
+        <p><label>Rule 4</label><input type="text" id="rule4" value="" size="40" /></p>
+        <p><label>Rule 5</label><input type="text" id="rule5" value="" size="40" /></p>
+        <h1>G-Code</h1>
+        <p><label>Width</label><input type="text" id="width" value="5" size="5" /> <label>Height</label><input type="text" id="height" value="5" size="5" /></p>
+        <p><label>Plunge</label><input type="text" id="plunge" value="5" size="5" /> <label>Feed</label><input type="text" id="feed" value="5" size="5" /></p>
+
+
+    </aside>      
+</body>
+</html>

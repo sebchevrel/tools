@@ -1,0 +1,311 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <title>Spritesheet Maker</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+    <style type="text/css">
+
+    #sidebar {
+        position:absolute;
+        top:0px;
+        width:360px;
+        right:0px;
+        padding:20px;
+    }
+
+    
+    
+    #filesChoose {
+        position:absolute;
+        top:-20px;
+    }
+
+    #fileDrop {
+        padding:20px;
+        border: 1px dashed;
+        text-align: center;
+        margin-bottom:20px;
+    }
+
+    #filesList {
+        font-size: 90%;
+    }
+    
+    #textureView {
+        position:absolute;
+        top:0px;
+        left:0px;
+        overflow:scroll;
+    }
+
+    #texture {
+       background:#333;
+    }
+
+    .left {
+        text-align:left;
+        
+    }
+    .right {
+        text-align:right;
+        padding-left: 10px;
+    }
+
+    .sprite {
+        position: absolute;        
+    }
+
+    input { margin-bottom:5px;}
+
+    </style>
+
+    <script src="js/growingpacker.js"></script>
+
+    <script type="text/javascript">
+    'use strict';
+    (function()
+    {
+        var sprites=[],
+            config={
+                width:1080,
+                height:1080,
+                spacing: 2
+            },
+            c2d,
+            textureDom,
+            dropZoneDom,
+            filesDom,
+            filesListDom,
+            batchSize=0;
+
+        window.addEventListener('load',onAppLoaded,false);
+
+        function initApp()
+        {
+            textureDom=document.getElementById('texture');
+            document.getElementById('textureView').style.width=innerWidth-400+'px';
+            document.getElementById('textureView').style.height=innerHeight+'px'
+            
+            dropZoneDom=document.getElementById('fileDrop');
+            dropZoneDom.addEventListener('dragover', onDropZoneDragOver, false);
+            dropZoneDom.addEventListener('drop', onDropZoneDrop, false);
+            
+            filesDom=document.getElementById('files');
+            filesDom.addEventListener('change', onFilesChanged, false);
+
+            filesListDom=document.getElementById('filesList');
+
+            document.getElementById('selectFiles').addEventListener('click',onSelectFiles);
+            document.getElementById('texturePower2').addEventListener('change',onConfigChange);
+            document.getElementById('texturePadding').addEventListener('change',onConfigChange);
+
+            document.getElementById('saveTexture').addEventListener('click',onSaveTexture);
+            document.getElementById('saveAtlas').addEventListener('click',onSaveAtlas);
+        }    
+
+        function processFiles(fileList)
+        {
+            for (var i = 0, f; f = fileList[i]; i++) 
+            {
+                if (!f.type.match('image.*')) continue;
+                var found=false;
+                for(var j=0, s; s=sprites[j]; j++) if(f.name==s.file.name) found=true;
+                if (found) continue;
+                var reader = new FileReader();
+                batchSize++;
+                reader.onload = (function(theFile) 
+                {
+                    return function(e) 
+                    {
+                        createSprite(theFile,e.target.result);
+                    };
+                })(f);
+                reader.readAsDataURL(f);
+            }              
+        }
+      
+        function createSprite(file,content)
+        {
+            var image=new Image();
+            image.src=content;
+
+            var sprite={
+                file: file,
+                image: image,
+                w: image.width,
+                h: image.height,
+                max: Math.max(image.width,image.height),
+                area: image.width*image.height
+            };
+            sprites.push(sprite);
+            
+            if (--batchSize==0) 
+            {           
+                sprites.sort(function(a,b) { return b.max-a.max; });
+                updateTexture();
+                updateFileList();
+                
+            }            
+        }
+
+        function updateFileList()
+        {
+            var listHTML='<table><tr><th class="left">Image name</th><th class="right">W</th><th class="right">H</th><th class="right">X</th><th class="right">Y</th></tr>';
+            for(var i=0, s; s=sprites[i]; i++)
+            {
+                var bounds=s.image.getBoundingClientRect();
+                listHTML+='<tr><td class="left">'+s.file.name+'</td><td class="right">'+ s.image.width+'</td><td class="right">'+s.image.height + '</td><td class="right">'+bounds.left+'</td><td class="right">'+bounds.top+'</td></tr>';
+            }
+            listHTML+='</table>';
+            filesListDom.innerHTML=listHTML;
+        }
+
+        function updateTexture()
+        {
+            var packer=new GrowingPacker();
+            var padding=Number(document.getElementById('texturePadding').value)
+
+            for(var n = 0 ; n < sprites.length ; n++) {
+                sprites[n].w=sprites[n].image.width+padding*2;
+                sprites[n].h=sprites[n].image.height+padding*2;
+            }
+            packer.fit(sprites);
+
+            if (document.getElementById('texturePower2').checked) 
+            {
+                packer.root.w=nearestGreaterPowerOf2(packer.root.w);
+                packer.root.h=nearestGreaterPowerOf2(packer.root.h);
+            }
+
+
+            document.getElementById('textureWidth').value=packer.root.w;
+            document.getElementById('textureHeight').value=packer.root.h;            
+            textureDom.width=packer.root.w;
+            textureDom.height=packer.root.h;
+
+            c2d=textureDom.getContext("2d");
+
+            var xmlDoc='<?xml version="1.0" encoding="utf-8"?>';            
+            xmlDoc+='<TextureAtlas imagePath="spritesheet.png">';
+
+            for(var n = 0 ; n < sprites.length ; n++) {
+                var sprite = sprites[n];
+                if (sprite.fit) {
+                    c2d.drawImage(sprite.image,sprite.fit.x+padding,sprite.fit.y+padding);
+                    xmlDoc+='<SubTexture name="'+sprite.file.name+'" x="'+(sprite.fit.x+padding)+'"  y="'+(sprite.fit.y+padding)+'" width="'+sprite.image.width+'" height="'+sprite.image.height+'"/>';
+                }
+            }
+            
+            xmlDoc+='</TextureAtlas>';
+
+            document.getElementById('saveTexture').href=textureDom.toDataURL("image/png");
+            document.getElementById('saveAtlas').href='data:text/xml;charset=utf-8,'+encodeURIComponent(xmlDoc);
+        }
+
+
+      
+
+        /*
+
+            UTILITIES
+
+        */
+        
+        function nearestGreaterPowerOf2(number)
+        {
+            var log2=Math.log2(number)//Math.LN2;
+            if (log2-Math.floor(log2) < 0.00001) log2=Math.floor(log2);
+            else log2=Math.ceil(log2);
+            return Math.pow(2,log2);
+        }
+
+      
+
+        /*
+
+            EVENT LISTENERS
+
+        */
+
+        function onAppLoaded(event)
+        {
+            if (window.File && window.FileReader && window.FileList && window.Blob) {
+                 initApp();
+            } else {
+                alert('The File APIs are not fully supported in this browser.');
+            }
+        }
+
+        function onFilesChanged(event)
+        {
+            processFiles(event.target.files);
+        }
+
+        function onDropZoneDragOver(event)
+        {
+            event.stopPropagation();
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+        }
+
+        function onDropZoneDrop(event)
+        {
+            event.stopPropagation();
+            event.preventDefault();
+            processFiles(event.dataTransfer.files);
+        }
+
+        function onSelectFiles(event)
+        {
+            document.getElementById('filesChoose').click();
+        }
+
+        function onConfigChange(event)
+        {
+            updateTexture();
+            updateFileList();
+        }
+
+        function onSaveTexture(event)
+        {
+            window.open();
+        }
+
+        function onSaveAtlas(event)
+        {
+           saveStarlingAtlas();           
+        }
+        
+    })();
+    </script>
+
+</head>
+
+<body>    
+    <div id="textureView">
+        <canvas id="texture"></canvs>    
+    </div>
+
+    <aside id="sidebar">
+        <h2>Input Files</h2>
+        <div id="files">
+            <input type="file" id="filesChoose" name="files[]" multiple />
+            <div id="fileDrop"><a href="#" id="selectFiles">Select</a> or Drop files here</div>
+        </div>        
+        <div id="filesList"></div>
+        <div id="config">
+            <h2>Texture Size</h2>
+            <label>Width</label><input type="text" id="textureWidth" value="0" />
+            <label>Height</label><input type="text" id="textureHeight" value="0" />
+            <label>Padding</label><input type="text" id="texturePadding" value="1" />
+            <br/>
+            <input type="checkbox" id="texturePower2" value="1" /><label> dimensions limited to powers of two 
+            <p><a href="" id="saveTexture" download="spritesheet.png">Save Texture PNG</a></p>
+            <p><a href="" id="saveAtlas" download="spritesheet.xml">Save Starling XML</a></p>
+        </div>                
+    </aside>        
+</body>
+</html>

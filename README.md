@@ -1,17 +1,19 @@
 # tools
-Useful tools i use in interactive development.
+Useful html5 tools for game, mobile or interactive development.
+
+You can run the live demos below in browser to actually get useful things done.
 
 ## bitmap font creator
-Creates starling bitmap font atlases from font files.
+Creates starling bitmap font atlases from local font files.
 
-[run tool](https://rawgit.com/sebchevrel/tools/master/bitmapfont.html)
+[use bitmap font tool](https://rawgit.com/sebchevrel/tools/master/bitmapfont.html)
 
 ## spritesheet editor
-Creates starling spritesheets from graphic files. 
+Creates starling spritesheets from local image files. 
 
-[run tool](https://rawgit.com/sebchevrel/tools/master/spritesheet.html)
+[use spritesheet tool](https://rawgit.com/sebchevrel/tools/master/spritesheet.html)
 
 ##L-system renderer
 Interactive L-System Renderer. 
 
-[run tool](https://rawgit.com/sebchevrel/tools/master/lsystem_gcode.html)
+[use L-System tool](https://rawgit.com/sebchevrel/tools/master/lsystem_gcode.html)

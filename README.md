@@ -9,7 +9,7 @@ Creates starling bitmap font atlases from font files.
 ## spritesheet editor
 Creates starling spritesheets from graphic files. 
 
-[demo](https://rawgit.com/sebchevrel/tools/master/spritehseet.html)
+[demo](https://rawgit.com/sebchevrel/tools/master/spritesheet.html)
 
 ##L-system renderer
 Interactive L-System Renderer. 

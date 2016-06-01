@@ -1,0 +1,326 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <title>Bitmap Font Maker</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+    <style type="text/css">
+
+
+    #sidebar {
+        position:absolute;
+        top:0px;
+        width:360px;
+        right:0px;
+        padding:20px;
+    }
+
+   
+    #textureView {
+        position:absolute;
+        top:0px;
+        left:0px;
+        overflow:scroll;
+    }
+
+    #texture {
+       background:#000;
+    }
+
+  
+
+    input { margin-bottom:5px;}
+
+    </style>
+
+    <script src="js/growingpacker.js"></script>
+    <script src="js/opentype.min.js"></script>
+
+    <script type="text/javascript">
+    'use strict';
+    (function()
+    {
+        var sprites=[],
+            textureDom,
+            font,
+            fontScale,fontSize,fontBaseline,fontMaxHeight,
+            c2d,
+            index={},
+            padding=1;
+
+        window.addEventListener('load',onAppLoaded,false);
+
+        function initApp()
+        {
+            textureDom=document.getElementById('texture');
+            document.getElementById('fontFile').addEventListener('change',onFontFile);
+            document.getElementById('fontSize').addEventListener('change',onParamChange);            
+            document.getElementById('charDef').addEventListener('change',onParamChange);     
+            document.getElementById('textureView').style.width=innerWidth-400+'px';
+            document.getElementById('textureView').style.height=innerHeight+'px';
+            document.getElementById('saveTexture').addEventListener('click',onSaveTexture);
+            document.getElementById('saveAtlas').addEventListener('click',onSaveAtlas);
+            document.getElementById('saveJSON').addEventListener('click',onSaveJson);
+            document.getElementById('saveShader').addEventListener('click',onSaveShader);
+        } 
+
+     
+
+        function processString(font,input)
+        {
+            var char,sprite,glyph,path,metrics;
+            
+            sprites=[];
+            index={};
+
+            for(var i=0; i<input.length; i++)
+            {
+                char=input.charAt(i);
+                glyph=font.charToGlyph(char);
+                metrics=glyph.getMetrics();
+                if (glyph) 
+                {
+                    //console.log(glyph);                
+                    sprite={
+                        id: input.charCodeAt(i),
+                        char:char,
+                        glyph: glyph,
+                        w: Math.ceil(glyph.advanceWidth*fontScale) + padding*2,
+                        h: Math.ceil(fontMaxHeight*fontScale) + padding*2,
+                        advance: glyph.advanceWidth*fontScale,
+                        lsb: glyph.leftSideBearing*fontScale,
+                        //w: Math.ceil((metrics.xMax-metrics.xMin)*fontScale),
+                        //h: Math.ceil((metrics.yMax-metrics.yMin)*fontScale)
+
+                    }                
+                    sprites.push(sprite)                
+                }
+                
+            }            
+
+            sprites.sort(function(a,b) {return b.w-a.w; });                
+            console.log(sprites);
+
+            var packer=new GrowingPacker();
+            packer.fit(sprites);
+
+            c2d=textureDom.getContext("2d");
+
+            textureDom.width=packer.root.w;
+            textureDom.height=packer.root.h;
+            
+            
+            c2d.fillStyle='#ffffff';
+            
+            for(var n = 0 ; n < sprites.length ; n++) {
+                sprite = sprites[n];
+                if (sprite.fit) {
+                    //console.log(c2d,sprite.fit.x, sprite.fit.y, fontSize);
+                    path=sprite.glyph.getPath(sprite.fit.x+padding, sprite.fit.y+fontBaseline+padding, fontSize);
+                    path.fill='#ffffff';
+                    path.draw(c2d);
+                    index[sprite.id]={ id: sprite.id, x:sprite.fit.x+padding, y:sprite.fit.y+padding, width:sprite.w-padding*2, height: sprite.h-padding*2,advance:sprite.advance,bearing:sprite.lsb}
+                }
+            }
+            
+            document.getElementById('textureWidth').value=packer.root.w;
+            document.getElementById('textureHeight').value=packer.root.h;
+        }
+
+        function saveJsonFont()
+        {
+          
+            
+            var obj={ 
+                Font:{
+                    Name: font.familyName,
+                    Size: fontSize,
+                    Texture: "texture.png",
+                    Glyphs:[]
+                }
+            };
+
+            var w = textureDom.width;
+            var h = textureDom.height;
+
+            for(var key in index) {
+                if (index.hasOwnProperty(key)) 
+                    obj.Font.Glyphs.push({ Char: index[key].id, X: index[key].x/w, Y: index[key].y/h, W: index[key].width/w, H: index[key].height/h, Advance: index[key].advance/w, Bearing: index[key].bearing/w    });
+            }
+            window.open('data:text/xml;charset=utf-8,'+encodeURIComponent(JSON.stringify(obj)));
+        }
+
+        function saveShader()
+        {
+            var str='vec4 glyphs['+sprites.length+']={';
+            
+            var w = textureDom.width;
+            var h = textureDom.height;
+
+            var kerningPairs=[];
+            var indexTranslator={};
+            var count=0;
+
+            for(var key in index) {
+                if (index.hasOwnProperty(key))
+                {
+                    str+='{'+index[key].x/w+','+index[key].y/h+','+index[key].width/w+','+index[key].height/h+'},';
+                    indexTranslator[key]=count;
+                    count++;
+                }
+            }
+            str=str.substr(0,str.length-1)+"};\r\n\r\n";
+
+			for(var key in index) {
+                if (index.hasOwnProperty(key))
+                {
+            		for (var kernkey in font.kerningPairs)
+            		{
+            			var values=kernkey.split(',');
+            			if (values[0] == key) {
+            				for(var key2 in index) {
+                				if (index.hasOwnProperty(key2)) {
+                					if (values[1]==key2) {
+                						kerningPairs.push({a: indexTranslator[key], b: indexTranslator[key2], k:font.kerningPairs[kernkey]});
+  										break;
+                					}
+                				}			
+                			}
+            			}
+            		}
+				}
+			}
+            var kern='struct { unsigned int first; unsigned int second; float kern; } kernings['+kerningPairs.length+']={';
+            for (var i=0; i<kerningPairs.length; i++) kern+='{'+kerningPairs[i].a+','+kerningPairs[i].b+','+kerningPairs[i].k*fontScale/w+'},';
+            kern=kern.substr(0,kern.length-1)+"};\r\n\r\n";
+
+            window.open('data:text/xml;charset=utf-8,'+encodeURIComponent(str+kern));
+        }
+
+        function saveStarlingAtlas()
+        {
+            var size=parseInt(c2d.font);
+            var xmlDoc='<?xml version="1.0" encoding="utf-8"?>';
+            xmlDoc+='<font>';
+            xmlDoc+='<info face="'+font.familyName+'" size="'+fontSize+'" />';
+            xmlDoc+='<common lineHeight="'+fontSize+'" />';
+            xmlDoc+='<pages>';
+            xmlDoc+='<page id="0" file="texture.png" />';
+            xmlDoc+='</pages>';
+            xmlDoc+='<chars>';
+            for(var key in index) {
+                if (index.hasOwnProperty(key)) xmlDoc+='<char id="'+index[key].id+'" x="'+index[key].x+'" y="'+index[key].y+'" width="'+index[key].width+'" height="'+index[key].height+'" xoffset="0" yoffset="0" xadvance="'+Math.ceil(index[key].advance*fontScale*1.1)+'" />';
+            }
+            /*<char id="32" x="60" y="29" width="1" height="1" xoffset="0" yoffset="27" xadvance="8" />*/
+            xmlDoc+='</chars>';
+            //xmlDoc+='<kernings>';
+            //xmlDoc+='<kerning first="83" second="83" amount="-4"/>';
+            //xmlDoc+='</kernings>';
+            xmlDoc+='</font>';
+            window.open('data:text/xml;charset=utf-8,'+encodeURIComponent(xmlDoc));
+        }
+     
+
+        /*
+
+            EVENT LISTENERS
+
+        */
+
+        function onAppLoaded(event)
+        {
+            if (window.File && window.FileReader && window.FileList && window.Blob) {
+                 initApp();
+            } else {
+                alert('The File APIs are not fully supported in this browser.');
+            }
+        }
+
+
+        function onFontFile(event)
+        {   
+            var file = event.target.files[0];
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    font = opentype.parse(e.target.result);                
+                    console.log(font);
+                    onParamChange();
+                } catch (err) {                    
+                    
+                    throw(err);
+                }
+            }
+            reader.onerror = function (err) {
+                
+            }
+            reader.readAsArrayBuffer(file);
+        }
+
+        function onParamChange(event)
+        {            
+            var head=font.tables.head;
+
+            fontMaxHeight   =   head.yMax - head.yMin;
+            fontSize        =   Number(document.getElementById('fontSize').value);
+            fontScale       =   fontSize / font.unitsPerEm
+            fontBaseline    =   fontSize * head.yMax / fontMaxHeight;
+            console.log(fontBaseline)
+            processString(font,document.getElementById('charDef').value);
+
+        }
+
+        function onSaveTexture(event)
+        {
+            window.open(textureDom.toDataURL("image/png"));
+        }
+
+        function onSaveAtlas(event)
+        {
+           saveStarlingAtlas();           
+        }
+
+        function onSaveJson(event)
+        {
+           saveJsonFont();           
+        }
+
+		function onSaveShader(event)
+        {
+           saveShader();           
+        }
+        
+    })();
+    </script>
+
+</head>
+
+<body>
+    <div id="textureView">
+        <canvas id="texture" width="1024" height="1024"></canvas>
+    </div>
+            
+    <aside id="sidebar">
+        <h2>Font</h2>
+            <input type="file" id="fontFile" name="files[]" /><br/>
+            <label>Size</label><input type="text" id="fontSize" value="52" /><br/>
+
+            <label>Characters</label><br/>
+            <input type="text" id="charDef" value=" 0123456789~`!@#$%^&amp;*()_+=-qwertyuiop[]\asdfghjkl;'zxcvbnm,./QWERTYUIOP{}ASDFGHJKL:&quot;ZXCVBNM<>?" size="50" /><br/>
+        
+
+        <div id="config">
+            <h2>Texture Size</h2>
+            <label>Width</label><input type="text" id="textureWidth" value="0" />
+            <label>Width</label><input type="text" id="textureHeight" value="0" />
+
+            <p><input type="button" id="saveTexture" value="Save Texture PNG" /></p>
+            <p><input type="button" id="saveAtlas" value="Save Starling XML" /></p>
+            <p><input type="button" id="saveJSON" value="Save Quill JSON" /></p>
+            <p><input type="button" id="saveShader" value="Save Quill Shader" /></p>
+        </div>        
+    </aside>      
+</body>
+</html>

@@ -58,6 +58,7 @@
             document.getElementById('fontFile').addEventListener('change',onFontFile);
             document.getElementById('fontSize').addEventListener('change',onParamChange);            
             document.getElementById('charDef').addEventListener('change',onParamChange);     
+            document.getElementById('padding').addEventListener('change',onParamChange);     
             document.getElementById('textureView').style.width=innerWidth-400+'px';
             document.getElementById('textureView').style.height=innerHeight+'px';
             document.getElementById('saveTexture').addEventListener('click',onSaveTexture);
@@ -267,6 +268,7 @@
             fontSize        =   Number(document.getElementById('fontSize').value);
             fontScale       =   fontSize / font.unitsPerEm
             fontBaseline    =   fontSize * head.yMax / fontMaxHeight;
+            padding 		=	Number(document.getElementById('padding').value);
             console.log(fontBaseline)
             processString(font,document.getElementById('charDef').value);
 
@@ -313,8 +315,9 @@
 
         <div id="config">
             <h2>Texture Size</h2>
-            <label>Width</label><input type="text" id="textureWidth" value="0" />
-            <label>Width</label><input type="text" id="textureHeight" value="0" />
+            <label>Width</label><input type="text" id="textureWidth" value="0" /><br/>
+            <label>Height</label><input type="text" id="textureHeight" value="0" /><br/>
+            <label>Padding</label><input type="text" id="padding" value="4" />
 
             <p><input type="button" id="saveTexture" value="Save Texture PNG" /></p>
             <p><input type="button" id="saveAtlas" value="Save Starling XML" /></p>

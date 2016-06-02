@@ -8,6 +8,12 @@ Creates starling bitmap font atlases from local font files.
 
 [use bitmap font tool](https://rawgit.com/sebchevrel/tools/master/bitmapfont.html)
 
+## Signed Distance Field font creator
+Creates SDF font atlases from local font files.
+
+[use SDF font tool](https://rawgit.com/sebchevrel/tools/master/sdf_font.html)
+
+
 ## spritesheet editor
 Creates starling spritesheets from local image files. 
 

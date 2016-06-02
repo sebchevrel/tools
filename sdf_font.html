@@ -64,7 +64,7 @@
             document.getElementById('saveTexture').addEventListener('click',onSaveTexture);
             document.getElementById('saveAtlas').addEventListener('click',onSaveAtlas);
             document.getElementById('saveJSON').addEventListener('click',onSaveJson);
-            document.getElementById('saveShader').addEventListener('click',onSaveShader);
+            
         } 
 
      
@@ -125,21 +125,89 @@
                     index[sprite.id]={ id: sprite.id, x:sprite.fit.x+padding, y:sprite.fit.y+padding, width:sprite.w-padding*2, height: sprite.h-padding*2,advance:sprite.advance,bearing:sprite.lsb}
                 }
             }
-            
+
             document.getElementById('textureWidth').value=packer.root.w;
             document.getElementById('textureHeight').value=packer.root.h;
+
+            // do a brute force SDF pass
+            var w=packer.root.w, wpad=w-padding*2;
+            var h=packer.root.h, hpad=h-padding*2;
+			var pixels=c2d.getImageData(0,0,w,h);
+			var newData=c2d.createImageData(w,h);
+			var index1,index2,color,minDistance,distance,minIndex;
+			var threshold=127;
+			var maxDistance=Math.sqrt(padding*padding*2)-1;
+
+			for(var y= 0; y<h; y++)
+			{
+				for(var x = 0; x<w; x++)
+				{
+					minDistance=10000000;
+					minIndex=-1;
+					index1=(y*w+x)*4;
+					color = pixels.data[index1];
+
+					for(var yoffset=-padding; yoffset<=padding; yoffset++)
+					{
+						if (y+yoffset <0) continue;
+						if (y+yoffset >=h) continue;
+
+						for(var xoffset=-padding; xoffset<=padding; xoffset++)
+						{
+							if (x+xoffset <0) continue;
+							if (x+xoffset >=w) continue;
+						
+							index2=((y+yoffset)*w+x+xoffset)*4;
+
+							if (Math.abs(pixels.data[index2]-color)>threshold)
+							{
+								distance=Math.sqrt(xoffset*xoffset+yoffset*yoffset);
+								if (distance<minDistance)
+								{
+									minDistance=distance;
+									minIndex=index2;
+								}
+							}
+
+						}	
+					}
+					
+					if (minIndex!=-1)
+					{
+						var val;
+						minDistance=minDistance-1;
+						
+						if (color<=127) val=Math.floor(127-minDistance*127/maxDistance);
+						else val= 127+Math.floor(minDistance*127/maxDistance)
+
+						newData.data[index1]=val; newData.data[index1+1]=val; newData.data[index1+2]=val; newData.data[index1+3]=255;
+					} else {
+						newData.data[index1]=0;
+						newData.data[index1+1]=0;
+						newData.data[index1+2]=0;
+						newData.data[index1+3]=0;
+					}
+				}	
+			}
+			
+			c2d.putImageData(newData,0,0);
+            
+            
         }
 
         function saveJsonFont()
         {
           
-            
+            var indexTranslator={};
+            var count=0;
+
             var obj={ 
                 Font:{
                     Name: font.familyName,
                     Size: fontSize,
                     Texture: "texture.png",
-                    Glyphs:[]
+                    Glyphs:[],
+                    KerningPairs:[]
                 }
             };
 
@@ -147,34 +215,14 @@
             var h = textureDom.height;
 
             for(var key in index) {
-                if (index.hasOwnProperty(key)) 
-                    obj.Font.Glyphs.push({ Char: index[key].id, X: index[key].x/w, Y: index[key].y/h, W: index[key].width/w, H: index[key].height/h, Advance: index[key].advance/w, Bearing: index[key].bearing/w    });
-            }
-            window.open('data:text/xml;charset=utf-8,'+encodeURIComponent(JSON.stringify(obj)));
-        }
-
-        function saveShader()
-        {
-            var str='vec4 glyphs['+sprites.length+']={';
-            
-            var w = textureDom.width;
-            var h = textureDom.height;
-
-            var kerningPairs=[];
-            var indexTranslator={};
-            var count=0;
-
-            for(var key in index) {
-                if (index.hasOwnProperty(key))
-                {
-                    str+='{'+index[key].x/w+','+index[key].y/h+','+index[key].width/w+','+index[key].height/h+'},';
+                if (index.hasOwnProperty(key)) {
+                    obj.Font.Glyphs.push({ Char: index[key].id, X: index[key].x/w, Y: index[key].y/h, W: index[key].width/w, H: index[key].height/h });
                     indexTranslator[key]=count;
                     count++;
                 }
             }
-            str=str.substr(0,str.length-1)+"};\r\n\r\n";
 
-			for(var key in index) {
+            for(var key in index) {
                 if (index.hasOwnProperty(key))
                 {
             		for (var kernkey in font.kerningPairs)
@@ -184,7 +232,7 @@
             				for(var key2 in index) {
                 				if (index.hasOwnProperty(key2)) {
                 					if (values[1]==key2) {
-                						kerningPairs.push({a: indexTranslator[key], b: indexTranslator[key2], k:font.kerningPairs[kernkey]});
+                						obj.Font.KerningPairs.push({a: indexTranslator[key], b: indexTranslator[key2], k:font.kerningPairs[kernkey]*fontScale/w});
   										break;
                 					}
                 				}			
@@ -193,12 +241,11 @@
             		}
 				}
 			}
-            var kern='struct { unsigned int first; unsigned int second; float kern; } kernings['+kerningPairs.length+']={';
-            for (var i=0; i<kerningPairs.length; i++) kern+='{'+kerningPairs[i].a+','+kerningPairs[i].b+','+kerningPairs[i].k*fontScale/w+'},';
-            kern=kern.substr(0,kern.length-1)+"};\r\n\r\n";
 
-            window.open('data:text/xml;charset=utf-8,'+encodeURIComponent(str+kern));
+            window.open('data:text/xml;charset=utf-8,'+encodeURIComponent(JSON.stringify(obj)));
         }
+
+
 
         function saveStarlingAtlas()
         {
@@ -289,10 +336,7 @@
            saveJsonFont();           
         }
 
-		function onSaveShader(event)
-        {
-           saveShader();           
-        }
+	
         
     })();
     </script>
@@ -307,7 +351,7 @@
     <aside id="sidebar">
         <h2>Font</h2>
             <input type="file" id="fontFile" name="files[]" /><br/>
-            <label>Size</label><input type="text" id="fontSize" value="52" /><br/>
+            <label>Size</label><input type="text" id="fontSize" value="64" /><br/>
 
             <label>Characters</label><br/>
             <input type="text" id="charDef" value=" 0123456789~`!@#$%^&amp;*()_+=-qwertyuiop[]\asdfghjkl;'zxcvbnm,./QWERTYUIOP{}ASDFGHJKL:&quot;ZXCVBNM<>?" size="50" /><br/>
@@ -317,12 +361,12 @@
             <h2>Texture Size</h2>
             <label>Width</label><input type="text" id="textureWidth" value="0" /><br/>
             <label>Height</label><input type="text" id="textureHeight" value="0" /><br/>
-            <label>Padding</label><input type="text" id="padding" value="4" />
+            <label>Padding/Spread</label><input type="text" id="padding" value="8" />
 
             <p><input type="button" id="saveTexture" value="Save Texture PNG" /></p>
             <p><input type="button" id="saveAtlas" value="Save Starling XML" /></p>
-            <p><input type="button" id="saveJSON" value="Save Quill JSON" /></p>
-            <p><input type="button" id="saveShader" value="Save Quill Shader" /></p>
+            <p><input type="button" id="saveJSON" value="Save JSON Font" /></p>
+            
         </div>        
     </aside>      
 </body>

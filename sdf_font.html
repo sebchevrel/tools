@@ -122,7 +122,7 @@
                     path=sprite.glyph.getPath(sprite.fit.x+padding, sprite.fit.y+fontBaseline+padding, fontSize);
                     path.fill='#ffffff';
                     path.draw(c2d);
-                    index[sprite.id]={ id: sprite.id, x:sprite.fit.x+padding, y:sprite.fit.y+padding, width:sprite.w-padding*2, height: sprite.h-padding*2,advance:sprite.advance,bearing:sprite.lsb}
+                    index[sprite.id]={ id: sprite.id, x:sprite.fit.x, y:sprite.fit.y, width:sprite.w, height: sprite.h,advance:sprite.advance,bearing:sprite.lsb}
                 }
             }
 
@@ -182,10 +182,13 @@
 
 						newData.data[index1]=val; newData.data[index1+1]=val; newData.data[index1+2]=val; newData.data[index1+3]=255;
 					} else {
-						newData.data[index1]=0;
-						newData.data[index1+1]=0;
-						newData.data[index1+2]=0;
-						newData.data[index1+3]=0;
+						if (color<=127) val=0;
+						else val=255;
+
+						newData.data[index1]=val;
+						newData.data[index1+1]=val;
+						newData.data[index1+2]=val;
+						newData.data[index1+3]=255;
 					}
 				}	
 			}

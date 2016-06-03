@@ -48,7 +48,8 @@
             fontScale,fontSize,fontBaseline,fontMaxHeight,
             c2d,
             index={},
-            padding=4;
+            padding=2,
+            spread=4;
 
         window.addEventListener('load',onAppLoaded,false);
 
@@ -59,6 +60,7 @@
             document.getElementById('fontSize').addEventListener('change',onParamChange);            
             document.getElementById('charDef').addEventListener('change',onParamChange);     
             document.getElementById('padding').addEventListener('change',onParamChange);     
+            document.getElementById('spread').addEventListener('change',onParamChange);     
             document.getElementById('textureView').style.width=innerWidth-400+'px';
             document.getElementById('textureView').style.height=innerHeight+'px';
             document.getElementById('saveTexture').addEventListener('click',onSaveTexture);
@@ -122,7 +124,7 @@
                     path=sprite.glyph.getPath(sprite.fit.x+padding, sprite.fit.y+fontBaseline+padding, fontSize);
                     path.fill='#ffffff';
                     path.draw(c2d);
-                    index[sprite.id]={ id: sprite.id, x:sprite.fit.x, y:sprite.fit.y, width:sprite.w, height: sprite.h,advance:sprite.advance,bearing:sprite.lsb}
+                    index[sprite.id]={ id: sprite.id, x:sprite.fit.x+padding-spread, y:sprite.fit.y+padding-spread, width:sprite.w-padding*2+spread*2, height: sprite.h-padding*2+spread*2,advance:sprite.advance,bearing:sprite.lsb}
                 }
             }
 
@@ -130,13 +132,13 @@
             document.getElementById('textureHeight').value=packer.root.h;
 
             // do a brute force SDF pass
-            var w=packer.root.w, wpad=w-padding*2;
-            var h=packer.root.h, hpad=h-padding*2;
+            var w=packer.root.w, wpad=w-spread*2;
+            var h=packer.root.h, hpad=h-spread*2;
 			var pixels=c2d.getImageData(0,0,w,h);
 			var newData=c2d.createImageData(w,h);
 			var index1,index2,color,minDistance,distance,minIndex;
 			var threshold=127;
-			var maxDistance=Math.sqrt(padding*padding*2)-1;
+			var maxDistance=Math.sqrt(spread*spread*2)-1;
 
 			for(var y= 0; y<h; y++)
 			{
@@ -147,12 +149,12 @@
 					index1=(y*w+x)*4;
 					color = pixels.data[index1];
 
-					for(var yoffset=-padding; yoffset<=padding; yoffset++)
+					for(var yoffset=-spread; yoffset<=spread; yoffset++)
 					{
 						if (y+yoffset <0) continue;
 						if (y+yoffset >=h) continue;
 
-						for(var xoffset=-padding; xoffset<=padding; xoffset++)
+						for(var xoffset=-spread; xoffset<=spread; xoffset++)
 						{
 							if (x+xoffset <0) continue;
 							if (x+xoffset >=w) continue;
@@ -319,6 +321,7 @@
             fontScale       =   fontSize / font.unitsPerEm
             fontBaseline    =   fontSize * head.yMax / fontMaxHeight;
             padding 		=	Number(document.getElementById('padding').value);
+            spread 			=	Number(document.getElementById('spread').value);
             console.log(fontBaseline)
             processString(font,document.getElementById('charDef').value);
 
@@ -365,7 +368,8 @@
             <h2>Texture Size</h2>
             <label>Width</label><input type="text" id="textureWidth" value="0" /><br/>
             <label>Height</label><input type="text" id="textureHeight" value="0" /><br/>
-            <label>Padding/Spread</label><input type="text" id="padding" value="8" />
+            <label>Padding</label><input type="text" id="padding" value="2" />
+            <label>Spread</label><input type="text" id="spread" value="4" />
 
             <p><input type="button" id="saveTexture" value="Save Texture PNG" /></p>
             <p><input type="button" id="saveAtlas" value="Save Starling XML" /></p>

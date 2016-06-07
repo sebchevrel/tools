@@ -111,6 +111,12 @@
 
             c2d=textureDom.getContext("2d");
 
+            if (document.getElementById('texturePower2').checked) 
+            {
+                packer.root.w=nearestGreaterPowerOf2(packer.root.w);
+                packer.root.h=nearestGreaterPowerOf2(packer.root.h);
+            }
+
             textureDom.width=packer.root.w;
             textureDom.height=packer.root.h;
             
@@ -275,6 +281,14 @@
             window.open('data:text/xml;charset=utf-8,'+encodeURIComponent(xmlDoc));
         }
      
+      	function nearestGreaterPowerOf2(number)
+        {
+            var log2=Math.log2(number)//Math.LN2;
+            if (log2-Math.floor(log2) < 0.00001) log2=Math.floor(log2);
+            else log2=Math.ceil(log2);
+            return Math.pow(2,log2);
+        }
+
 
         /*
 
@@ -368,7 +382,8 @@
             <h2>Texture Size</h2>
             <label>Width</label><input type="text" id="textureWidth" value="0" /><br/>
             <label>Height</label><input type="text" id="textureHeight" value="0" /><br/>
-            <label>Padding</label><input type="text" id="padding" value="2" />
+            <input type="checkbox" id="texturePower2" value="1" /><label> dimensions limited to powers of two<br/>
+            <label>Padding</label><input type="text" id="padding" value="2" /><br />
             <label>Spread</label><input type="text" id="spread" value="4" />
 
             <p><input type="button" id="saveTexture" value="Save Texture PNG" /></p>

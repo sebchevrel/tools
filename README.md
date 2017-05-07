@@ -19,7 +19,7 @@ Creates starling spritesheets from local image files.
 
 [use spritesheet tool](https://rawgit.com/sebchevrel/tools/master/spritesheet.html)
 
-##L-system renderer
+## L-system renderer
 Interactive L-System Renderer. 
 
 [use L-System tool](https://rawgit.com/sebchevrel/tools/master/lsystem_gcode.html)
